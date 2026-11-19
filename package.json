@@ -1,0 +1,16 @@
+{
+  "name": "web2-loja",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Atividade de integração entre Node.js, Express e MySQL - Desenvolvimento Web 2",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.0",
+    "express": "^5.3.0",
+    "mysql2": "^3.24.0"
+  }
+}
