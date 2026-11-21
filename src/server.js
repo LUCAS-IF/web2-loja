@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// Encaminha erros das rotas assíncronas ao middleware central.
+// Encaminha erros das rotas assincronas ao middleware central.
 const asyncRoute = (handler) => (req, res, next) => {
   Promise.resolve(handler(req, res, next)).catch(next);
 };
@@ -30,20 +30,23 @@ function validarProduto(body = {}) {
     return { erro: 'Informe um nome com até 100 caracteres.' };
   }
 
-  // DECIMAL(10,2): até 8 dígitos inteiros e 2 casas decimais.
+  // DECIMAL(10,2): até 8 digitos inteiros e 2 casas decimais.
   if (!/^\d{1,8}(\.\d{1,2})?$/.test(precoTexto)) {
     return { erro: 'Informe um preço válido, maior ou igual a zero, com até 2 casas decimais.' };
   }
 
   const preco = Number(precoTexto);
   const estoque = Number(estoqueTexto);
+
   if (!Number.isSafeInteger(estoque) || estoque < 0) {
     return { erro: 'O estoque deve ser um número inteiro maior ou igual a zero.' };
   }
 
   let categoria_id = null;
+
   if (categoriaTexto !== '' && categoriaTexto !== null) {
     categoria_id = Number(categoriaTexto);
+
     if (!Number.isSafeInteger(categoria_id) || categoria_id <= 0) {
       return { erro: 'Selecione uma categoria válida.' };
     }
@@ -59,6 +62,7 @@ app.get('/produtos', asyncRoute(async (req, res) => {
 
   if (busca) {
     const termo = `%${busca}%`;
+
     const [rows] = await pool.execute(
       `SELECT p.id, p.nome, p.preco, p.estoque, p.categoria_id,
               c.nome AS categoria_nome
@@ -68,6 +72,7 @@ app.get('/produtos', asyncRoute(async (req, res) => {
        ORDER BY p.id`,
       [termo],
     );
+
     return res.json(rows);
   }
 
@@ -78,13 +83,17 @@ app.get('/produtos', asyncRoute(async (req, res) => {
      LEFT JOIN categoria c ON c.id = p.categoria_id
      ORDER BY p.id`,
   );
+
   return res.json(rows);
 }));
 
 // GET /produtos/:id
 app.get('/produtos/:id', asyncRoute(async (req, res) => {
   const id = obterIdValido(req.params.id);
-  if (!id) return res.status(400).json({ erro: 'ID inválido.' });
+
+  if (!id) {
+    return res.status(400).json({ erro: 'ID inválido.' });
+  }
 
   const [rows] = await pool.execute(
     `SELECT p.id, p.nome, p.preco, p.estoque, p.categoria_id,
@@ -98,15 +107,20 @@ app.get('/produtos/:id', asyncRoute(async (req, res) => {
   if (rows.length === 0) {
     return res.status(404).json({ erro: 'Produto não encontrado.' });
   }
+
   return res.json(rows[0]);
 }));
 
 // POST /produtos
 app.post('/produtos', asyncRoute(async (req, res) => {
   const validacao = validarProduto(req.body ?? {});
-  if (validacao.erro) return res.status(400).json({ erro: validacao.erro });
+
+  if (validacao.erro) {
+    return res.status(400).json({ erro: validacao.erro });
+  }
 
   const { nome, preco, estoque, categoria_id } = validacao.dados;
+
   const [result] = await pool.execute(
     'INSERT INTO produto (nome, preco, estoque, categoria_id) VALUES (?, ?, ?, ?)',
     [nome, preco, estoque, categoria_id],
@@ -124,12 +138,19 @@ app.post('/produtos', asyncRoute(async (req, res) => {
 // PUT /produtos/:id
 app.put('/produtos/:id', asyncRoute(async (req, res) => {
   const id = obterIdValido(req.params.id);
-  if (!id) return res.status(400).json({ erro: 'ID inválido.' });
+
+  if (!id) {
+    return res.status(400).json({ erro: 'ID inválido.' });
+  }
 
   const validacao = validarProduto(req.body ?? {});
-  if (validacao.erro) return res.status(400).json({ erro: validacao.erro });
+
+  if (validacao.erro) {
+    return res.status(400).json({ erro: validacao.erro });
+  }
 
   const { nome, preco, estoque, categoria_id } = validacao.dados;
+
   const [result] = await pool.execute(
     `UPDATE produto
      SET nome = ?, preco = ?, estoque = ?, categoria_id = ?
@@ -138,15 +159,29 @@ app.put('/produtos/:id', asyncRoute(async (req, res) => {
   );
 
   if (result.affectedRows === 0) {
-    return res.status(404).json({ erro: 'Produto não encontrado.' });
+    // No MySQL, affectedRows pode ser zero quando o produto existe,
+    // mas os valores enviados são iguais aos valores já armazenados.
+    // Consultamos o ID para diferenciar esse caso de um produto inexistente.
+    const [existentes] = await pool.execute(
+      'SELECT id FROM produto WHERE id = ?',
+      [id],
+    );
+
+    if (existentes.length === 0) {
+      return res.status(404).json({ erro: 'Produto não encontrado.' });
+    }
   }
+
   return res.json({ mensagem: 'Produto atualizado com sucesso.' });
 }));
 
 // DELETE /produtos/:id
 app.delete('/produtos/:id', asyncRoute(async (req, res) => {
   const id = obterIdValido(req.params.id);
-  if (!id) return res.status(400).json({ erro: 'ID inválido.' });
+
+  if (!id) {
+    return res.status(400).json({ erro: 'ID inválido.' });
+  }
 
   const [result] = await pool.execute(
     'DELETE FROM produto WHERE id = ?',
@@ -156,6 +191,7 @@ app.delete('/produtos/:id', asyncRoute(async (req, res) => {
   if (result.affectedRows === 0) {
     return res.status(404).json({ erro: 'Produto não encontrado.' });
   }
+
   return res.status(204).end();
 }));
 
@@ -164,14 +200,18 @@ app.get('/categorias', asyncRoute(async (_req, res) => {
   const [rows] = await pool.execute(
     'SELECT id, nome FROM categoria ORDER BY nome',
   );
+
   return res.json(rows);
 }));
 
 // POST /categorias
 app.post('/categorias', asyncRoute(async (req, res) => {
   const nome = String((req.body ?? {}).nome ?? '').trim();
+
   if (!nome || nome.length > 80) {
-    return res.status(400).json({ erro: 'Informe um nome de categoria com até 80 caracteres.' });
+    return res.status(400).json({
+      erro: 'Informe um nome de categoria com até 80 caracteres.'
+    });
   }
 
   const [result] = await pool.execute(
@@ -192,24 +232,38 @@ app.use((err, _req, res, _next) => {
   console.error('[ERRO]', err);
 
   if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({ erro: 'O corpo da requisição contém JSON inválido.' });
-  }
-  if (err.code === 'ER_DUP_ENTRY') {
-    return res.status(409).json({ erro: 'Ja existe uma categoria com esse nome.' });
-  }
-  if (err.code === 'ER_NO_REFERENCED_ROW_2') {
-    return res.status(400).json({ erro: 'A categoria informada nao existe.' });
-  }
-  if (err.code === 'ER_CHECK_CONSTRAINT_VIOLATED') {
-    return res.status(400).json({ erro: 'Os dados informados violam uma regra do banco.' });
+    return res.status(400).json({
+      erro: 'O corpo da requisição contém JSON inválido.'
+    });
   }
 
-  return res.status(500).json({ erro: 'Erro interno do servidor.' });
+  if (err.code === 'ER_DUP_ENTRY') {
+    return res.status(409).json({
+      erro: 'Ja existe uma categoria com esse nome.'
+    });
+  }
+
+  if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+    return res.status(400).json({
+      erro: 'A categoria informada nao existe.'
+    });
+  }
+
+  if (err.code === 'ER_CHECK_CONSTRAINT_VIOLATED') {
+    return res.status(400).json({
+      erro: 'Os dados informados violam uma regra do banco.'
+    });
+  }
+
+  return res.status(500).json({
+    erro: 'Erro interno do servidor.'
+  });
 });
 
 async function iniciarServidor() {
   try {
     await pool.execute('SELECT 1');
+
     const server = app.listen(PORT, () => {
       console.log(`Web2 Loja em http://localhost:${PORT}`);
       console.log('Conexao com MySQL estabelecida.');
@@ -217,6 +271,7 @@ async function iniciarServidor() {
 
     const encerrar = async () => {
       console.log('\nEncerrando servidor...');
+
       server.close(async () => {
         await pool.end();
         process.exit(0);
@@ -225,10 +280,12 @@ async function iniciarServidor() {
 
     process.once('SIGINT', encerrar);
     process.once('SIGTERM', encerrar);
+
   } catch (err) {
     console.error('Não foi possível conectar ao MySQL.');
     console.error('Codigo:', err.code || 'sem codigo');
     console.error('Mensagem:', err.message);
+
     await pool.end();
     process.exitCode = 1;
   }
